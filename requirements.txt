@@ -1,4 +1,4 @@
-opencv-python
-pymunk
-pygame
-numpy
+opencv-python>=4.9
+pymunk>=6.6
+pygame>=2.5
+numpy>=1.26
