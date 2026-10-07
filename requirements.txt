@@ -1,0 +1,4 @@
+opencv-python
+pymunk
+pygame
+numpy

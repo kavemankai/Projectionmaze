@@ -1,0 +1,100 @@
+# Shadow Physics
+
+Real shadows act as live collision geometry for a 2D physics game. A webcam watches a wall, shadows are extracted as a mask, the mask becomes static physics shapes, and a projector draws the game back onto the wall so the two line up.
+
+Reference: Tee Ken Ng's demo (webcam -> TouchDesigner -> Godot). This project does the same thing in one Python program with no engine.
+
+## Stack
+
+| Job | Library |
+|---|---|
+| Camera capture, threshold, contours, homography | OpenCV (`opencv-python`) |
+| Physics | pymunk |
+| Rendering / projector window | pygame |
+| Math | numpy |
+
+Python 3.11+. Everything installs with pip.
+
+## Pipeline
+
+```
+webcam -> warp to game space -> blur -> threshold -> clean up -> contours
+       -> simplify -> static pymunk segments -> physics step -> render -> projector
+```
+
+1. **Capture.** Run `cv2.VideoCapture` in its own thread and keep only the newest frame. Lock exposure and white balance if the driver allows it. Auto-exposure ruins thresholds.
+2. **Warp.** Apply the calibration homography (`cv2.warpPerspective`) so mask pixels equal game pixels.
+3. **Mask.** Grayscale, Gaussian blur, then threshold. Start with a cutoff relative to the frame mean (about 0.6x). Fall back to Otsu or adaptive if lighting drifts.
+4. **Clean.** Morphological open to kill speckle, close to fill holes. Drop blobs under a minimum area.
+5. **Contours.** `cv2.findContours` then `cv2.approxPolyDP` to cut the point count.
+6. **Shapes.** Turn each contour into `pymunk.Segment`s on one static body, with a radius of 2-4 px for thickness. Segments avoid convex decomposition, which polygons would require.
+7. **Rebuild.** Swap the segment set at 15-30 Hz, not every frame. Run physics with substeps (120 Hz) to limit tunneling.
+8. **Render.** Fullscreen pygame window on the projector display. Draw game objects only, never the shadow.
+
+## Calibration
+
+Needed once per physical setup, redone if anything moves.
+
+1. Projector shows 4 bright dots at known game coordinates.
+2. Camera sees them. Detect them (blob detection) or click them manually on the camera preview.
+3. `cv2.getPerspectiveTransform` gives the camera-to-game homography. Save it to `calibration.json`.
+
+Manual clicking is the first version. Auto-detection comes later.
+
+## Known problems
+
+- **Projector feedback.** Projected light lands inside the shadow and brightens it, and the camera sees that. Mitigations, in order of effort: draw objects dim on a black background (black pixels emit no light); subtract the known rendered object footprint from the mask; use an IR-pass filter on the camera plus an IR lamp.
+- **Lighting drift.** Use a relative threshold and a fixed single light source. Re-tune per room.
+- **Latency.** Webcam plus processing is 50-100 ms. Use a 60 fps camera at 640x480 or lower, and process a downscaled mask.
+- **Squash and launch.** A shadow can move into an object. Add push-out logic: if a dynamic body overlaps the new geometry, nudge it along the shortest escape direction instead of letting the solver explode it.
+- **Mask flicker.** Temporal smoothing (average the last 2-3 masks) before contouring.
+
+## Milestones
+
+1. **Monitor-only.** Webcam feed, mask, contours drawn over the preview. No physics, no projector.
+2. **Physics on monitor.** Click to spawn balls, they collide with your hand's shadow.
+3. **Projector + calibration.** Fullscreen output, 4-point calibration, objects line up with real shadows.
+4. **Feedback handling.** Pick and implement a mitigation from the list above.
+5. **Game.** A character, a goal, a level. Not before 1-4 work.
+
+## Layout
+
+```
+shadow-physics/
+  README.md
+  requirements.txt
+  calibration.json        # generated
+  src/
+    main.py               # loop, wiring
+    capture.py            # threaded camera
+    mask.py               # warp, threshold, cleanup
+    shapes.py             # contours -> pymunk segments
+    world.py              # physics, spawning, push-out
+    render.py             # pygame window, projector output
+    calibrate.py          # 4-point homography tool
+```
+
+`requirements.txt`:
+
+```
+opencv-python
+pymunk
+pygame
+numpy
+```
+
+## Config values to expose
+
+Put these in one config file or at the top of `main.py`, adjustable at runtime with keys:
+
+- mask resolution (start 160x120)
+- threshold multiplier
+- min blob area
+- `approxPolyDP` epsilon
+- shape rebuild rate (Hz)
+- smoothing frame count
+- segment radius
+
+## Hardware
+
+Projector, webcam (60 fps preferred), one strong point-ish light, a plain light wall, rigid mounts for camera and projector.
