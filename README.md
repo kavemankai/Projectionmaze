@@ -96,6 +96,7 @@ Written and unit-tested on synthetic frames. Not yet run against a real camera o
 - M2: done in code (`app.py`). Push-out uses the distance-transform gradient of the shadow mask.
 - M3: done in code. Manual 4-click calibration only.
 - M4: dim objects on black (`SimConfig.brightness`) plus footprint exclusion (`ShadowMask.process(exclude=...)`). Needs real-world tuning.
+- Holes: enclosed bright gaps are kept (`MaskConfig.holes`, `RETR_CCOMP`). The 3x3 morphological close fills gaps under about 12 game px, so maze corridors must be wider than that, and wider than the ball (20 px) to be passable.
 - M5: not started.
 
 ## Config values to expose

@@ -58,3 +58,22 @@ def test_clear_balls():
     w.spawn(100, 100)
     w.clear_balls()
     assert w.balls == []
+
+
+def ring_mask():
+    m = np.zeros((120, 160), np.uint8)
+    m[60:100, 40:120] = 255
+    m[70:90, 60:100] = 0  # hole, game px x 240..400, y 280..360
+    cnts, _ = cv2.findContours(m, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    return m, [c.reshape(-1, 2) for c in cnts]
+
+
+def test_ball_rests_inside_hole():
+    w = World(SimConfig(), (160, 120))
+    w.set_geometry(*ring_mask())
+    w.spawn(320, 200)  # above the ring, lands on the top wall
+    w.spawn(320, 320)  # inside the hole
+    for _ in range(600):
+        w.step(1 / 60)
+    inside = w.balls[1][0]
+    assert 280 < inside.position.y < 360 and 240 < inside.position.x < 400

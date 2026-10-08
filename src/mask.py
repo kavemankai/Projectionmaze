@@ -12,6 +12,7 @@ class MaskConfig:
     epsilon: float = 1.5       # approxPolyDP tolerance (mask pixels)
     smooth_frames: int = 2     # OR together the last N masks to cut flicker
     blur: int = 5              # odd kernel size
+    holes: bool = True         # keep enclosed bright gaps (RETR_CCOMP); False = solid blobs
 
 
 class ShadowMask:
@@ -54,7 +55,10 @@ class ShadowMask:
             mask = mask | (exclude & self._prev)
         self._prev = mask
 
-        found, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        mode = cv2.RETR_CCOMP if c.holes else cv2.RETR_EXTERNAL
+        # CCOMP returns outer boundaries and the holes inside them in one flat
+        # list; both are closed polylines and become segments the same way.
+        found, _ = cv2.findContours(mask, mode, cv2.CHAIN_APPROX_SIMPLE)
         contours = []
         for cnt in found:
             if cv2.contourArea(cnt) < c.min_area:

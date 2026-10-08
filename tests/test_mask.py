@@ -64,3 +64,33 @@ def test_exclude_keeps_previous_mask_under_objects():
     sm2.process(frame_with_rect())
     mask3, _ = sm2.process(f)
     assert mask3[55, 70] == 0  # without exclude the hole appears
+
+
+def ring_frame(hole=(260, 200, 300, 240)):
+    f = frame_with_rect()
+    x0, y0, x1, y1 = hole
+    f[y0:y1, x0:x1] = 200
+    return f
+
+
+def test_hole_kept_as_second_contour():
+    _, contours = ShadowMask(MaskConfig(smooth_frames=1)).process(ring_frame())
+    assert len(contours) == 2
+
+
+def test_holes_off_gives_solid_blob():
+    _, contours = ShadowMask(MaskConfig(smooth_frames=1, holes=False)).process(ring_frame())
+    assert len(contours) == 1
+
+
+def test_island_inside_hole_kept():
+    f = ring_frame((220, 160, 340, 290))
+    f[190:260, 250:310] = 20
+    _, contours = ShadowMask(MaskConfig(smooth_frames=1)).process(f)
+    assert len(contours) == 3
+
+
+def test_small_hole_filled():
+    f = ring_frame((260, 200, 268, 208))  # 2x2 mask px
+    _, contours = ShadowMask(MaskConfig(smooth_frames=1)).process(f)
+    assert len(contours) == 1
